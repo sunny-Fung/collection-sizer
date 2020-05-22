@@ -1,52 +1,54 @@
-var https = require("https");
 var fs = require("fs");
+var axios = require("axios");
 var { homeLink, needComment } = require("./config");
 
 // 评论数组
 let commentArray = [];
 
 for (let i = 0; i < homeLink.length; i++) {
-  https
-    .get(homeLink[i].url, function (res) {
-      var html = "";
-      res.on("data", function (data) {
-        html += data;
+  axios
+    .get(homeLink[i].url)
+    .then(async function (res) {
+      let list = res.data.data.list.vlist;
+      list = list.map((item) => {
+        let { comment, play, title, created, length, pic, aid, bvid } = item;
+        created = dateFormat(Number(`${created}000`));
+        bvid = `https://www.bilibili.com/video/${bvid}`;
+        return { created, length, play, comment, title, pic, aid, bvid };
       });
-      res.on("end", async function () {
-        const ob = JSON.parse(html);
-        let list = ob.data.list.vlist;
-        list = list.map((item) => {
-          let { comment, play, title, created, length, pic, aid, bvid } = item;
-          created = dateFormat(Number(`${created}000`));
-          bvid = `https://www.bilibili.com/video/${bvid}`;
-          return { created, length, play, comment, title, pic, aid, bvid };
-        });
-        const data = Object.assign(list);
-        if (needComment) {
-          for (let i = 0, j = data.length; i < j; i++) {
-            let url = `https://api.bilibili.com/x/v2/reply?pn=1&type=1&oid=${
-              data[i].aid
-            }&sort=2&_=${Date.now()}`;
-            const page = await getCommentPages(url);
-            data[i] = {
-              ...data[i],
-              pages: page,
-            };
-          }
-          for (let i = 0; i < data.length; i++) {
-            for (let j = 1; j <= data[i].pages; j++) {
-              const comment = await getComment(j, data[i].aid);
-              commentArray.push(comment);
-            }
-            output(json2csv(commentArray.flat(), 0), `${data[i].title}的评论`);
-          }
+      const data = Object.assign(list);
+      if (needComment) {
+        const concurrency = 2;
+        const gap = 1000;
+        for (let i = 0, j = data.length; i < j; i += concurrency) {
+          await Promise.all(
+            data.slice(i, i + concurrency).map(async (item) => {
+              const pages = await getCommentPages(
+                `https://api.bilibili.com/x/v2/reply?pn=1&type=1&oid=${
+                  item.aid
+                }&sort=2&_=${Date.now()}`
+              );
+              for (let page = 1; page < pages; page++) {
+                commentArray.push(await getComment(page, item.aid));
+              }
+              await output(
+                json2csv(commentArray.flat(), 0),
+                `${item.title}的评论`
+              );
+            })
+          );
+          await sleep(gap);
         }
-        output(json2csv(list, 1), homeLink[i].name);
-      });
+      }
+      output(json2csv(list, 1), homeLink[i].name);
     })
-    .on("error", function () {
-      console.log("获取资源出错！");
+    .catch(function (error) {
+      console.log(error);
     });
+}
+
+function sleep(time) {
+  return new Promise((resolved) => setTimeout(resolved, time));
 }
 
 function dateFormat(time) {
@@ -59,43 +61,38 @@ function dateFormat(time) {
 function getComment(page, aid) {
   let list = [];
   return new Promise((resolved) => {
-    https.get(
-      `https://api.bilibili.com/x/v2/reply?pn=${page}&type=1&oid=${aid}&sort=2&_=${Date.now()}`,
-      function (res) {
-        var html = "";
-        res.on("data", function (data) {
-          html += data;
-        });
-        res.on("end", function () {
-          const ob = JSON.parse(html);
-          const replies = ob.data.replies;
-          for (let i = 0; i < replies.length; i++) {
-            const comment = {
-              uname: replies[i].member.uname,
-              sex: replies[i].member.sex,
-              message: replies[i].content.message,
-            };
-            list.push(comment);
-          }
-          resolved(list);
-        });
-      }
-    );
+    axios
+      .get(
+        `https://api.bilibili.com/x/v2/reply?pn=${page}&type=1&oid=${aid}&sort=2&_=${Date.now()}`
+      )
+      .then(function (res) {
+        const replies = res.data.data.replies;
+        for (let i = 0; i < replies.length; i++) {
+          const comment = {
+            uname: replies[i].member.uname,
+            sex: replies[i].member.sex,
+            message: replies[i].content.message,
+          };
+          list.push(comment);
+        }
+        resolved(list);
+      })
+      .catch(function (error) {
+        console.log(error);
+      });
   });
 }
 
 function getCommentPages(url) {
   return new Promise((resolved) => {
-    https.get(url, function (res) {
-      var html = "";
-      res.on("data", function (data) {
-        html += data;
+    axios
+      .get(url)
+      .then(function (res) {
+        resolved(pageCount(res.data.data.page.count, res.data.data.page.size));
+      })
+      .catch(function (error) {
+        console.log(error);
       });
-      res.on("end", function () {
-        const ob = JSON.parse(html);
-        resolved(pageCount(ob.data.page.count, ob.data.page.size));
-      });
-    });
   });
 }
 

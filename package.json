@@ -1,0 +1,11 @@
+{
+  "name": "collection-sizer",
+  "version": "0.0.1",
+  "description": "collection and analyze",
+  "main": "index.js",
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.19.2"
+  }
+}

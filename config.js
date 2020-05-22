@@ -33,4 +33,4 @@ module.exports.homeLink = [
 ];
 
 // 需要视频下面的评论内容吗？默认需要，不需要请改为false
-module.exports.needComment = true;
+module.exports.needComment = false;
