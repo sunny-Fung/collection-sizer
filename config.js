@@ -20,17 +20,27 @@ module.exports.homeLink = [
   //   url:
   //     "https://api.bilibili.com/x/space/arc/search?mid=306765333&pn=1&ps=100",
   // },
-  // {
-  //   name: "膜法世家官方账号",
-  //   url:
-  //     "https://api.bilibili.com/x/space/arc/search?mid=276861076&pn=1&ps=100",
-  // },
   {
-    name: "诗佩妮SPENNY",
+    name: "膜法世家官方账号",
     url:
-      "https://api.bilibili.com/x/space/arc/search?mid=477955873&pn=1&ps=100",
+      "https://api.bilibili.com/x/space/arc/search?mid=276861076&pn=1&ps=100",
   },
+  // {
+  //   name: "诗佩妮SPENNY",
+  //   url:
+  //     "https://api.bilibili.com/x/space/arc/search?mid=477955873&pn=1&ps=100",
+  // },
 ];
 
 // 需要视频下面的评论内容吗？默认需要，不需要请改为false
 module.exports.needComment = false;
+
+// 同一时间请求的评论链接数
+module.exports.concurrency = 2;
+
+/******  未填坑: 二楼三楼的评论
+评论：https://api.bilibili.com/x/v2/reply?pn=1&type=1&oid=${aid}&sort=2&_=${Date.now()}
+
+二级评论：https://api.bilibili.com/x/v2/reply/reply?pn=1&type=1&oid=${aid}&ps=100&root=${rpid}&_=${Date.now()}
+
+*******/

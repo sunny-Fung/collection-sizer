@@ -1,9 +1,11 @@
 var fs = require("fs");
 var axios = require("axios");
-var { homeLink, needComment } = require("./config");
+var { homeLink, needComment, concurrency } = require("./config");
 
 // 评论数组
 let commentArray = [];
+// 全部信息数组
+let BVInfoArray = [];
 
 for (let i = 0; i < homeLink.length; i++) {
   axios
@@ -17,8 +19,28 @@ for (let i = 0; i < homeLink.length; i++) {
         return { created, length, play, comment, title, pic, aid, bvid };
       });
       const data = Object.assign(list);
+      // 获取视频评论点赞等信息
+      const gap = 2000;
+      for (let i = 0, j = data.length; i < j; i += concurrency) {
+        await Promise.all(
+          data.slice(i, i + concurrency).map(async (item) => {
+            let oo = await getBVInfo(item.aid, item.bvid);
+            item = {
+              ...item,
+              view: oo.view,
+              danmaku: oo.danmaku,
+              reply: oo.reply,
+              favorite: oo.favorite,
+              coin: oo.coin,
+              share: oo.share,
+              like: oo.like,
+            };
+            BVInfoArray.push(item);
+          })
+        );
+        await sleep(gap);
+      }
       if (needComment) {
-        const concurrency = 2;
         const gap = 1000;
         for (let i = 0, j = data.length; i < j; i += concurrency) {
           await Promise.all(
@@ -40,7 +62,7 @@ for (let i = 0; i < homeLink.length; i++) {
           await sleep(gap);
         }
       }
-      output(json2csv(list, 1), homeLink[i].name);
+      output(json2csv(BVInfoArray, 1), homeLink[i].name);
     })
     .catch(function (error) {
       console.log(error);
@@ -76,6 +98,26 @@ function getComment(page, aid) {
           list.push(comment);
         }
         resolved(list);
+      })
+      .catch(function (error) {
+        console.log(error);
+      });
+  });
+}
+
+function getBVInfo(aid, bvid) {
+  return new Promise((resolved) => {
+    axios
+      .get(`https://api.bilibili.com/x/web-interface/archive/stat?aid=${aid}`, {
+        headers: {
+          Referer: bvid,
+          "user-agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36",
+          origin: "https://www.bilibili.com",
+        },
+      })
+      .then(function (res) {
+        resolved(res.data.data);
       })
       .catch(function (error) {
         console.log(error);
@@ -127,6 +169,13 @@ function json2csv(source, type) {
           pic: "封面图片",
           aid: "视频编号",
           bvid: "视频地址",
+          view: "播放數",
+          danmaku: "彈幕數",
+          reply: "評論數量",
+          favorite: "收藏數",
+          coin: "投幣數",
+          share: "分享數",
+          like: "點贊數",
         };
         if (oldKey[key]) {
           const newKey = oldKey[key];
